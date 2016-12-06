@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
 from bs4 import BeautifulSoup
 import requests
 import codecs
@@ -42,6 +45,7 @@ class NetflixSession:
     def escape(self, string):
         # escape anything that isnt escaped (\xXX)
         string = re.sub(r'\\([^x])', r'\\\\\1', string)
+        # string = re.sub(r'\\([^x])', r'\\\\\1', unicode(string, "utf-8"))
         # unescape \xXX codes
         return codecs.decode(string, 'unicode_escape')
 
@@ -65,6 +69,9 @@ class NetflixSession:
         self.contextData['profilesModel']['data']['active']['guid']
 
         return profile_guids
+
+    def get_profiles(self):
+        return self.contextData['profilesModel']['data']['profiles']
 
     def get_active_profile(self):
         return self.contextData['profilesModel']['data']['active']
@@ -112,18 +119,73 @@ class NetflixSession:
         return viewing_activity
 
 
-'''
-# Example program, TODO: move to its own file soon
-import json
-import re
-from get_netflix_activity import NetflixSession
-
-email = 'you@email.com'
-password = 'Password'
+email = input('Email: ')
+password = input('Password: ')
 
 user = NetflixSession(email, password)
-user.login()
-for guid in user.get_profile_guids():
-    user.switch_user(guid)
-    print(user.get_viewing_activity())  # TODO: process this and output to file
-'''
+
+while not user.login():
+    print('Incorrect username or password!')
+    print('Please try again...')
+    print('')
+    email = input('Email: ')
+    password = input('Password: ')
+
+    user = NetflixSession(email, password)
+
+profiles = user.get_profiles()
+
+print('Select the number of the profile you would like to scrape...\n')
+
+print('Enter', 'All')
+
+for index, profile in enumerate(profiles):
+    print(index, profile['firstName'])
+
+
+activity = {}
+
+while True:
+    try:
+        index = input('> ')
+        index = int(index)
+        if index < len(profiles) and index > -1:
+            user.switch_user(profiles[index]['guid'])
+            user_activity = user.get_viewing_activity()
+            user_name = profiles[index]['firstName']
+            activity[user_name] = []
+
+            for video in user_activity:
+                if 'seriesTitle' in video:
+                    name = '{} - {}'.format(video['seriesTitle'], video['title'])
+                else:
+                    name = video['title']
+                activity[user_name].append(name)
+
+            break
+        else:
+            print('That wasn\'t one of the numbers you could choose')
+    except Exception as e:
+        print(e)
+        if index != '':
+            print('Error! You didn\'t give me a number')
+        else:
+            for profile in profiles:
+                user.switch_user(profile['guid'])
+                user_activity = user.get_viewing_activity()
+                user_name = profile['firstName']
+                activity[user_name] = []
+                
+                for video in user_activity:
+                    if 'seriesTitle' in video:
+                        name = '{} - {}'.format(video['seriesTitle'], video['title'])
+                    else:
+                        name = video['title']
+                    activity[user_name].append(name)
+            break
+
+for user in activity:
+    print(user + ': ')
+    print()
+    print('\n'.join(activity[user]))
+    print('\n')
