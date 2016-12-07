@@ -30,6 +30,8 @@ class NetflixSession:
 
         authURL = soup.find('input', attrs={'name': 'authURL'})['value']
 
+        self.contextData = None
+
         self.paramaters = {
             'email': email,
             'password': password,
@@ -65,8 +67,6 @@ class NetflixSession:
 
         for profile in self.contextData['profilesModel']['data']['profiles']:
             profile_guids.append(profile['guid'])
-
-        self.contextData['profilesModel']['data']['active']['guid']
 
         return profile_guids
 
@@ -146,10 +146,11 @@ for index, profile in enumerate(profiles):
 activity = {}
 
 while True:
+    index = None
     try:
         index = input('> ')
         index = int(index)
-        if index < len(profiles) and index > -1:
+        if -1 < index < len(profiles):
             user.switch_user(profiles[index]['guid'])
             user_activity = user.get_viewing_activity()
             user_name = profiles[index]['firstName']
