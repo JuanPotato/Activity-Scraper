@@ -1,7 +1,10 @@
-# Netflix Activity Scraper
-This script scrapes the netflix watching activity of all the profiles on an account
+# Streaming Services Activity Scraper
 
-Just run `netflix.py` and you should be set. This script is meant to be `python3` only.
+These scripts allow you to gather a list of your viewing history on Hulu and Netflix 
+(more services may be added)
+
+Just run the script you want and you should be set. This script is meant to be `python3` 
+only.
 
 ## Dependencies
 

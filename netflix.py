@@ -90,7 +90,7 @@ class NetflixSession:
         contextData = json.loads(self.escape(contextData.group(1)))
         self.contextData = contextData
 
-    def get_viewing_activity(self):
+    def get_viewing_activity(self, max=500):
         serverDefs = self.contextData['serverDefs']['data']
         url = '/'.join([serverDefs['SHAKTI_API_ROOT'],
                         serverDefs['BUILD_IDENTIFIER'],
