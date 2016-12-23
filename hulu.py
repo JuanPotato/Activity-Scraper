@@ -3,7 +3,10 @@
 
 from bs4 import BeautifulSoup
 import requests
+import hashlib
+import random
 import codecs
+import shutil
 import json
 import re
 
@@ -38,9 +41,17 @@ class HuluSession:
         page = self.session.post('https://auth.hulu.com/v1/web/password/authenticate',
                                   data=self.paramaters, headers=self.headers)
 
-        return page.status_code
+        j = {}
+
+        try:
+            j = page.json()
+        except:
+            pass
+
+        return (page.status_code, j)
 
     def get_viewing_activity(self):
+        self.session.get('http://www.hulu.com/welcome')
         page = self.session.get('https://secure.hulu.com/account/history', headers=self.headers)
         print(page)
         soup = BeautifulSoup(page.text, 'lxml')
@@ -66,7 +77,7 @@ class HuluSession:
             '_content_pgid': contentPgid,
             '_device_id': 1,
             'region': env_config['_Region'],
-            'locale': self.session.cookies.get_dict()['locale'],
+            'locale': env_config['_Language'].lower(),
             'language': env_config['_Language'],
             'csrf':  csrf_values['/api/2.0/retrieve_history']
         }
@@ -86,6 +97,48 @@ class HuluSession:
 
         return viewing_activity
 
+    def get_captcha(self):
+    # I can't check if this works because I havent been able to get it to trigger me a captcha for some reason :\
+        page = self.session.get('https://auth.hulu.com/login', headers=self.headers)
+        recaptcha_key = re.search(r'recaptchaKey: \'(.*?)\',', page.text)
+        recaptcha_key = recaptcha_key.group(1)
+
+        url = 'https://www.google.com/recaptcha/api/challenge'
+
+        paramaters = {
+            'k': recaptcha_key,
+            'ajax': 1,
+            'cachestop': '%.17f' % random.random()
+        }
+
+        page = self.session.get(url, params=paramaters, headers=self.headers)
+
+        recaptcha_state = re.search(r'RecaptchaState\s+=\s+({[\s\S]+?});', page.text)
+        recaptcha_state = json.loads(self.escape(recaptcha_state.group(1)))
+
+        reload_params = {
+            'c': recaptcha_state['challenge'],
+            'k': recaptcha_key,
+            'lang': 'en',
+            'reason': 'i',
+            'type': 'image'
+        }
+
+        data = self.session.get("http://www.google.com/recaptcha/api/reload" , params=reload_params).text
+        challenge = re.search(r"finish_reload\('(.*?)'", data).group(1)
+
+        c_hash = hashlib.md5(challenge.encode()).hexdigest()
+        
+        for _ in range(3):
+            c_hash += hashlib.md5(c_hash.encode()).hexdigest()
+
+        r = self.session.get("http://www.google.com/recaptcha/api/image", params={'c': challenge, 'th': c_hash}, stream=True)
+        if r.status_code == 200:
+            with open('captcha.jpg', 'wb') as f:
+                r.raw.decode_content = True
+                shutil.copyfileobj(r.raw, f)     
+
+
 
 email = input('Email: ')
 password = input('Password: ')
@@ -93,18 +146,18 @@ password = input('Password: ')
 user = HuluSession(email, password)
 
 log = user.login()
-while log != 200:
-    if log == 403:
-        print('We\'ve probably encountered a captcha for spamming Hulu too '\
-              'much, I\'ll try to a selenium fallback if this is a problem '\
-              'that happens on the first try. Please talk to be in Slack if '\
-              'you are having these issues without any real cause.\n'\
-              'Try again later ¯\_(\'_\')_/¯')  # nonunicode-shrug because I bet you someone is going to crash because of unicode
-        exit(1)
-    else:
-        print('Incorrect username or password!')
-        print('Please try again...')
+while log[0] != 200:
+    print(log)
+    if log[0] == 403:
+        if 'message' in log[1]:
+            print(log[1]['message'])
 
+        if 'error' in log[1] and log[1]['error'] == 'retry_limit':
+            print('We\'ve encountered a captcha due to too many incorrect tries, please try again later.') # TODO: Generate script that downloads the captcha
+            get_captcha()
+    else:
+        print('An unknown error occured :(')
+        print('Please try again...')
 
     print('')
     email = input('Email: ')
